@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { User, Users, Bot, BrainCircuit } from 'lucide-react'
+import { MOCK_AGENTS } from '../mock'
 
 interface HumanCard {
   id: number
@@ -14,98 +16,85 @@ interface HumanCard {
 
 export default function FloatingHumans() {
   const [hoveredCard, setHoveredCard] = useState<number | null>(null)
+  const [isPaused, setIsPaused] = useState(false)
 
-  const humanCards: HumanCard[] = [
-    {
-      id: 1,
-      name: "Sarah Chen",
-      role: "AI Trainer",
-      skills: ["Machine Learning", "Data Annotation"],
-      rating: 4.9,
-      icon: <User className="w-8 h-8" />
-    },
-    {
-      id: 2,
-      name: "Marcus Johnson",
-      role: "Task Validator",
-      skills: ["Quality Assurance", "Testing"],
-      rating: 4.8,
-      icon: <Users className="w-8 h-8" />
-    },
-    {
-      id: 3,
-      name: "Elena Rodriguez",
-      role: "AI Supervisor",
-      skills: ["Model Training", "Prompt Engineering"],
-      rating: 5.0,
-      icon: <BrainCircuit className="w-8 h-8" />
-    },
-    {
-      id: 4,
-      name: "David Kim",
-      role: "Human-in-the-Loop",
-      skills: ["Content Moderation", "Decision Making"],
-      rating: 4.7,
-      icon: <Bot className="w-8 h-8" />
-    }
-  ]
+  // Map real agents to floating cards format
+  const humanCards: HumanCard[] = MOCK_AGENTS.map(agent => ({
+    id: agent.id,
+    name: agent.name,
+    role: agent.role,
+    skills: agent.skills,
+    rating: agent.rating,
+    icon: agent.id % 4 === 1 ? <User className="w-8 h-8" /> :
+           agent.id % 4 === 2 ? <Users className="w-8 h-8" /> :
+           agent.id % 4 === 3 ? <BrainCircuit className="w-8 h-8" /> :
+           <Bot className="w-8 h-8" />
+  }))
+
+  // Duplicate cards for continuous looping
+  const duplicatedCards = [...humanCards, ...humanCards]
 
   return (
-    <div className="relative h-96 overflow-hidden">
-      <div className="absolute inset-0">
-        {humanCards.map((card, index) => {
-          const positions = [
-            { top: '10%', left: '5%' },
-            { top: '15%', right: '10%' },
-            { top: '50%', left: '8%' },
-            { top: '45%', right: '5%' }
-          ]
-          
-          const position = positions[index]
+    <div className="relative h-48 overflow-hidden">
+      <div 
+        className={`flex items-center gap-2 absolute whitespace-nowrap animate-slide ${
+          isPaused ? 'paused' : ''
+        }`}
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+      >
+        {duplicatedCards.map((card, index) => {
           const isHovered = hoveredCard === card.id
           
           return (
             <div
-              key={card.id}
-              className={`absolute bg-card border border-border rounded-lg p-4 shadow-lg transition-all duration-300 cursor-pointer ${
+              key={`${card.id}-${index}`}
+              className={`bg-card border border-border rounded-lg p-3 shadow-lg transition-all duration-300 cursor-pointer ${
                 isHovered ? 'scale-110 z-10' : 'scale-100'
-              } ${index % 2 === 0 ? 'animate-float' : 'animate-float-delayed'}`}
-              style={position}
+              }`}
               onMouseEnter={() => setHoveredCard(card.id)}
               onMouseLeave={() => setHoveredCard(null)}
             >
-              <div className="flex items-center space-x-3 mb-2">
+              <div className="flex items-center space-x-2 mb-1">
                 <div className="text-primary">
                   {card.icon}
                 </div>
                 <div>
-                  <h4 className="font-semibold text-foreground">{card.name}</h4>
-                  <p className="text-sm text-muted-foreground">{card.role}</p>
+                  <h4 className="font-semibold text-foreground text-sm">{card.name}</h4>
+                  <p className="text-xs text-muted-foreground">{card.role}</p>
                 </div>
               </div>
               
-              <div className="mb-2">
+              <div className="mb-1">
                 <div className="flex flex-wrap gap-1">
                   {card.skills.slice(0, 2).map((skill, skillIndex) => (
                     <span
                       key={skillIndex}
-                      className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded"
+                      className="text-xs bg-secondary text-secondary-foreground px-1 py-0.5 rounded"
                     >
                       {skill}
                     </span>
                   ))}
+                  {card.skills.length > 2 && (
+                    <span className="text-xs bg-muted text-muted-foreground px-1 py-0.5 rounded">
+                      +{card.skills.length - 2}
+                    </span>
+                  )}
                 </div>
               </div>
               
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <span className="text-yellow-500">★</span>
-                  <span className="text-sm text-foreground ml-1">{card.rating}</span>
+                  <span className="text-yellow-500 text-xs">★</span>
+                  <span className="text-xs text-foreground ml-1">{card.rating}</span>
                 </div>
                 {isHovered && (
-                  <button className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded hover:bg-primary/90">
-                    View Profile
-                  </button>
+                  <Link 
+                    href={`/agents/${card.id}`}
+                    className="text-xs bg-primary text-primary-foreground px-1 py-0.5 rounded hover:bg-primary/90"
+                  >
+                    View
+                  </Link>
                 )}
               </div>
             </div>

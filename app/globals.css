@@ -76,11 +76,15 @@ body {
   50% { transform: translateY(-15px); }
 }
 
-.animate-float {
-  animation: float 3s ease-in-out infinite;
+@keyframes slide {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 
-.animate-float-delayed {
-  animation: float-delayed 3s ease-in-out infinite;
-  animation-delay: 1.5s;
+.animate-slide {
+  animation: slide 30s linear infinite;
+}
+
+.animate-slide.paused {
+  animation-play-state: paused;
 }

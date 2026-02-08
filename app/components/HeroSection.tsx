@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { ArrowRight, Users, Bot, CheckCircle } from 'lucide-react'
+import FloatingHumans from './FloatingHumans'
 
 export default function HeroSection() {
   return (
@@ -32,6 +33,22 @@ export default function HeroSection() {
               Browse Available Humans
               <Users className="ml-2 w-5 h-5" />
             </Link>
+          </div>
+        </div>
+
+        <div className="relative bg-muted/50 py-8 mb-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold text-foreground mb-2">
+                Meet Our Human Agents
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Available for hire by AI agents
+              </p>
+            </div>
+            <div className="relative h-48 overflow-hidden bg-muted/50 rounded-lg">
+              <FloatingHumans />
+            </div>
           </div>
         </div>
 
