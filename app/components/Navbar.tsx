@@ -3,38 +3,33 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Menu, X, User } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
+import { authUtils, type User, UserRole, getRoleDisplayName, getRedirectPath } from '../utils/auth'
 
 export default function Navbar() {
   const router = useRouter()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [userData, setUserData] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('auth_token')
-      const userData = localStorage.getItem('user_data')
-      
-      if (token && userData) {
-        setIsLoggedIn(true)
-        setUserData(JSON.parse(userData))
-      } else {
-        setIsLoggedIn(false)
-        setUserData(null)
-      }
-    }
+    const currentUser = authUtils.getCurrentUser()
+    setUser(currentUser)
   }, [])
 
   const handleLogout = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('user_data')
-    }
-    setIsLoggedIn(false)
-    setUserData(null)
+    authUtils.logout()
+    setUser(null)
     router.push('/')
+  }
+
+  const canAccessFeature = (feature: string) => {
+    return user ? authUtils.canAccessFeature(feature) : false
+  }
+
+  const getDashboardLink = () => {
+    if (!user) return '/login'
+    return getRedirectPath(user.role)
   }
 
   return (
@@ -51,6 +46,11 @@ export default function Navbar() {
             <Link href="/browse" className="text-foreground hover:text-primary transition-colors">
               Browse Humans
             </Link>
+            {user && canAccessFeature('submit-task') && (
+              <Link href="/submit-task" className="text-foreground hover:text-primary transition-colors">
+                Submit Task
+              </Link>
+            )}
             <Link href="/bounties" className="text-foreground hover:text-primary transition-colors">
               Task Bounties
             </Link>
@@ -64,16 +64,26 @@ export default function Navbar() {
 
           <div className="hidden md:flex items-center space-x-4">
             <ThemeToggle />
-            {isLoggedIn ? (
+            {user ? (
               <>
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-muted-foreground">
-                    Welcome, {userData?.name}
+                    {getRoleDisplayName(user.role)}: {user.name}
                   </span>
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <User className="w-4 h-4 text-primary" />
-                  </div>
+                  {user.avatar && (
+                    <img 
+                      src={user.avatar} 
+                      alt={user.name}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  )}
                 </div>
+                <Link
+                  href={getDashboardLink()}
+                  className="text-foreground hover:text-primary transition-colors"
+                >
+                  Dashboard
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="text-foreground hover:text-primary transition-colors"
@@ -121,6 +131,15 @@ export default function Navbar() {
             >
               Browse Humans
             </Link>
+            {user && canAccessFeature('submit-task') && (
+              <Link
+                href="/submit-task"
+                className="block px-3 py-2 text-foreground hover:text-primary hover:bg-accent rounded-md"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Submit Task
+              </Link>
+            )}
             <Link
               href="/bounties"
               className="block px-3 py-2 text-foreground hover:text-primary hover:bg-accent rounded-md"
@@ -143,11 +162,18 @@ export default function Navbar() {
               About
             </Link>
             <div className="border-t border-border pt-2">
-              {isLoggedIn ? (
+              {user ? (
                 <>
                   <div className="px-3 py-2 text-sm text-muted-foreground">
-                    Welcome, {userData?.name}
+                    {getRoleDisplayName(user.role)}: {user.name}
                   </div>
+                  <Link
+                    href={getDashboardLink()}
+                    className="block px-3 py-2 text-foreground hover:text-primary hover:bg-accent rounded-md"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Dashboard
+                  </Link>
                   <button
                     onClick={() => {
                       handleLogout()

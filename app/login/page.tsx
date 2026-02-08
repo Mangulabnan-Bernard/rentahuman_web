@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, User, Lock } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
+import { authUtils, type UserRole, getRedirectPath } from '../utils/auth'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -23,31 +24,17 @@ export default function LoginPage() {
     setError('')
 
     try {
-      const response = await fetch('/api/auth', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          action: 'login'
-        }),
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        // Store token in localStorage
-        localStorage.setItem('auth_token', result.token)
-        localStorage.setItem('user_data', JSON.stringify(result.user))
-        
-        // Redirect to dashboard
-        router.push('/dashboard')
+      const result = await authUtils.login(formData.email, formData.password)
+      
+      if (result.success && result.user) {
+        // Redirect based on user role
+        const redirectPath = getRedirectPath(result.user.role)
+        router.push(redirectPath)
       } else {
         setError(result.error || 'Login failed')
       }
     } catch (err) {
-      setError('Network error. Please try again.')
+      setError('An error occurred during login')
     } finally {
       setIsLoading(false)
     }

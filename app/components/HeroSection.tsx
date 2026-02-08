@@ -14,7 +14,7 @@ export default function HeroSection() {
           </h1>
           
           <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Robots think, humans do. Earn where AI can’t reach.
+            AI can compute, but it can’t lift. You can.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
