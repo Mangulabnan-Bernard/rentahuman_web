@@ -1,74 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifySessionToken, SESSION_COOKIE } from '../../lib/session'
+import { listOpenTasks, listTasksForUser, createTask, type TaskUrgency } from '../../lib/tasks'
 
-const dummyTasks = [
-  {
-    id: 1,
-    title: "AI Model Training Data Validation",
-    description: "Need experienced data validators to review and correct training data for a new language model.",
-    category: "Data Validation",
-    budget: 500,
-    deadline: "2024-02-15",
-    location: "Remote",
-    applicants: 12,
-    status: "open",
-    postedBy: "TechCorp AI",
-    postedDate: "2 days ago",
-    skills: ["Data Annotation", "Quality Assurance", "Machine Learning"],
-    urgency: "high"
-  },
-  {
-    id: 2,
-    title: "Content Moderation for AI Assistant",
-    description: "Looking for content moderators to review AI-generated responses for accuracy and safety.",
-    category: "Content Moderation",
-    budget: 300,
-    deadline: "2024-02-20",
-    location: "Remote",
-    applicants: 8,
-    status: "open",
-    postedBy: "ChatAI Inc",
-    postedDate: "1 week ago",
-    skills: ["Content Review", "Policy Enforcement", "Critical Thinking"],
-    urgency: "medium"
-  }
-]
-
+/**
+ * GET /api/tasks            -> all open tasks (public browse)
+ * GET /api/tasks?scope=mine -> the signed-in user's tasks (posted, or assigned for agents)
+ */
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const category = searchParams.get('category')
-  const status = searchParams.get('status')
-  const search = searchParams.get('search')
+  const scope = new URL(request.url).searchParams.get('scope')
 
-  let filteredTasks = dummyTasks
-
-  if (category) {
-    filteredTasks = filteredTasks.filter(task => task.category === category)
+  if (scope === 'mine') {
+    const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value)
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
+    }
+    const tasks = await listTasksForUser(session.id, session.role)
+    return NextResponse.json({ success: true, data: tasks, total: tasks.length })
   }
 
-  if (status) {
-    filteredTasks = filteredTasks.filter(task => task.status === status)
-  }
-
-  if (search) {
-    const searchLower = search.toLowerCase()
-    filteredTasks = filteredTasks.filter(task =>
-      task.title.toLowerCase().includes(searchLower) ||
-      task.description.toLowerCase().includes(searchLower) ||
-      task.skills.some(skill => skill.toLowerCase().includes(searchLower))
-    )
-  }
-
-  return NextResponse.json({
-    success: true,
-    data: filteredTasks,
-    total: filteredTasks.length
-  })
+  const tasks = await listOpenTasks()
+  return NextResponse.json({ success: true, data: tasks, total: tasks.length })
 }
 
+/** POST /api/tasks — create a task (authenticated clients only). Persists to the DB. */
 export async function POST(request: NextRequest) {
-  // Posting a task requires an authenticated client. The role is read from the
-  // signed session cookie, never from the request body or client storage.
   const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value)
   if (!session) {
     return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
@@ -77,35 +32,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Only clients can post tasks' }, { status: 403 })
   }
 
+  let body: Record<string, unknown>
   try {
-    const body = await request.json()
-    const { title, description, category, budget, deadline, location, skills, urgency } = body
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid request body' }, { status: 400 })
+  }
 
-    const newTask = {
-      id: Date.now(),
-      title,
-      description,
-      category,
-      budget: parseInt(budget),
-      deadline,
-      location,
-      applicants: 0,
-      status: "open",
-      postedBy: session.name, // derived from the authenticated session, not client input
-      postedDate: "Just now",
-      skills,
-      urgency
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: newTask,
-      message: "Task created successfully"
-    })
-  } catch (error) {
+  const title = String(body.title ?? '').trim()
+  const description = String(body.description ?? '').trim()
+  const category = String(body.category ?? '').trim()
+  if (!title || !description || !category) {
     return NextResponse.json(
-      { success: false, error: 'Failed to create task' },
-      { status: 500 }
+      { success: false, error: 'Title, description and category are required' },
+      { status: 400 }
     )
   }
+
+  const budget = Number(body.budget)
+  const task = await createTask({
+    postedById: session.id,
+    title,
+    description,
+    category,
+    budget: Number.isNaN(budget) ? 0 : budget,
+    deadline: typeof body.deadline === 'string' && body.deadline ? body.deadline : null,
+    location: typeof body.location === 'string' ? body.location : 'Remote',
+    skills: Array.isArray(body.skills) ? (body.skills as string[]) : [],
+    urgency: (['low', 'medium', 'high'].includes(String(body.urgency))
+      ? body.urgency
+      : 'medium') as TaskUrgency,
+  })
+
+  return NextResponse.json({ success: true, data: task, message: 'Task created successfully' })
 }

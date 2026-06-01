@@ -74,6 +74,88 @@ async function main() {
     })
     console.log(`seeded ${u.email} (${u.role})`)
   }
+
+  const client = await prisma.user.findUnique({ where: { email: 'demo@rentahuman.com' } })
+  const agent = await prisma.user.findUnique({ where: { email: 'agent@rentahuman.com' } })
+
+  // Seed sample tasks once (idempotent: only when there are none).
+  if (client && agent && (await prisma.task.count()) === 0) {
+    const validation = await prisma.task.create({
+      data: {
+        title: 'AI Model Training Data Validation',
+        description: 'Review and validate labeled training data for a new language model.',
+        category: 'Data Validation',
+        budget: 500,
+        deadline: new Date('2026-07-15'),
+        status: 'open',
+        urgency: 'high',
+        skills: ['Data Annotation', 'Quality Assurance'],
+        postedById: client.id,
+      },
+    })
+    const moderation = await prisma.task.create({
+      data: {
+        title: 'Content Moderation for AI Assistant',
+        description: 'Review AI-generated responses for accuracy and safety.',
+        category: 'Content Moderation',
+        budget: 300,
+        deadline: new Date('2026-06-20'),
+        status: 'in_progress',
+        urgency: 'medium',
+        progress: 60,
+        skills: ['Content Review', 'Policy Enforcement'],
+        postedById: client.id,
+        assignedAgentId: agent.id,
+      },
+    })
+    const training = await prisma.task.create({
+      data: {
+        title: 'Customer Service AI Training',
+        description: 'Provide real conversation examples for AI training.',
+        category: 'AI Training',
+        budget: 450,
+        status: 'completed',
+        urgency: 'low',
+        progress: 100,
+        skills: ['Customer Service', 'Communication'],
+        postedById: client.id,
+        assignedAgentId: agent.id,
+      },
+    })
+    console.log('seeded 3 sample tasks')
+
+    if ((await prisma.earning.count()) === 0) {
+      await prisma.earning.createMany({
+        data: [
+          {
+            taskId: training.id,
+            agentId: agent.id,
+            amount: 450,
+            status: 'paid_out',
+            description: 'Completed customer service AI training.',
+            date: new Date('2026-05-20'),
+          },
+          {
+            taskId: moderation.id,
+            agentId: agent.id,
+            amount: 300,
+            status: 'claimable',
+            description: 'Content moderation review milestone.',
+            date: new Date('2026-05-28'),
+          },
+          {
+            taskId: validation.id,
+            agentId: agent.id,
+            amount: 500,
+            status: 'pending',
+            description: 'Data validation in progress.',
+            date: new Date('2026-06-01'),
+          },
+        ],
+      })
+      console.log('seeded 3 sample earnings')
+    }
+  }
 }
 
 main()
