@@ -101,20 +101,38 @@ export const getRoleDisplayName = (role: UserRole): string => {
   return roleNames[role] || 'Unknown'
 }
 
-// Mock authentication functions
+/**
+ * Client-side auth helpers.
+ *
+ * Authentication is performed by the `/api/auth` route, which validates
+ * credentials server-side and issues an httpOnly, signed session cookie. That
+ * cookie — not the value below — is the source of truth for authorization
+ * (enforced in middleware.ts). The `current_user` entry persisted here is used
+ * only to render the UI (name, avatar, role label); tampering with it cannot
+ * grant access to a protected route or API, because the server re-validates the
+ * signed cookie on every request.
+ */
+const STORAGE_KEY = 'current_user'
+
 export const authUtils = {
-  // Check if user is authenticated
+  // A user is "authenticated" for UI purposes if we have a cached user object.
+  // Authorization itself is always re-checked server-side via the session cookie.
   isAuthenticated: (): boolean => {
-    if (typeof window === 'undefined') return false
-    const token = localStorage.getItem('auth_token')
-    return !!token
+    return authUtils.getCurrentUser() !== null
   },
 
-  // Get current user from localStorage
+  // Get current user from localStorage (single, unified key).
   getCurrentUser: (): User | null => {
     if (typeof window === 'undefined') return null
-    const userStr = localStorage.getItem('current_user')
-    return userStr ? JSON.parse(userStr) : null
+    const userStr = localStorage.getItem(STORAGE_KEY)
+    if (!userStr) return null
+    try {
+      return JSON.parse(userStr) as User
+    } catch {
+      // Corrupt value — clear it so the app recovers gracefully.
+      localStorage.removeItem(STORAGE_KEY)
+      return null
+    }
   },
 
   // Get current user role
@@ -123,94 +141,64 @@ export const authUtils = {
     return user?.role || 'guest'
   },
 
-  // Login function
-  login: async (email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> => {
-    // Mock authentication logic
-    const mockUsers = [
-      {
-        id: 1,
-        email: 'demo@rentahuman.com',
-        password: 'demo123',
-        name: 'Demo Client',
-        role: 'client' as UserRole,
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
-        joinedDate: '2023-01-15',
-        verificationStatus: 'verified' as const,
-        profileCompleted: true
-      },
-      {
-        id: 2,
-        email: 'agent@rentahuman.com',
-        password: 'agent123',
-        name: 'Demo Agent',
-        role: 'agent' as UserRole,
-        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
-        joinedDate: '2023-02-20',
-        verificationStatus: 'verified' as const,
-        profileCompleted: true
-      },
-      {
-        id: 3,
-        email: 'admin@rentahuman.com',
-        password: 'admin123',
-        name: 'Demo Admin',
-        role: 'admin' as UserRole,
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-        joinedDate: '2023-01-01',
-        verificationStatus: 'verified' as const,
-        profileCompleted: true
-      }
-    ]
-
-    const user = mockUsers.find(u => u.email === email && u.password === password)
-    
-    if (user) {
-      const { password: _, ...userWithoutPassword } = user
-      const token = `mock_token_${user.id}_${Date.now()}`
-      
-      // Store in localStorage
-      localStorage.setItem('auth_token', token)
-      localStorage.setItem('current_user', JSON.stringify(userWithoutPassword))
-      
-      return { success: true, user: userWithoutPassword }
+  // Persist the user returned by the API for UI hydration.
+  setCurrentUser: (user: User): void => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(user))
     }
-    
-    return { success: false, error: 'Invalid email or password' }
   },
 
-  // Register function
+  // Login: delegates credential checking to the server, which sets the session cookie.
+  login: async (email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> => {
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login', email, password }),
+      })
+      const result = await response.json()
+      if (result.success && result.user) {
+        authUtils.setCurrentUser(result.user)
+        return { success: true, user: result.user }
+      }
+      return { success: false, error: result.error || 'Invalid email or password' }
+    } catch {
+      return { success: false, error: 'Network error. Please try again.' }
+    }
+  },
+
+  // Register: server validates the role and sets the session cookie, then we
+  // cache the returned user. Login and registration now share one flow + one key.
   register: async (userData: {
     email: string
     password: string
     name: string
     role: UserRole
   }): Promise<{ success: boolean; user?: User; error?: string }> => {
-    // Mock registration logic
-    const newUser: User = {
-      id: Math.floor(Math.random() * 1000) + 100,
-      email: userData.email,
-      name: userData.name,
-      role: userData.role,
-      avatar: `https://images.unsplash.com/photo-${Math.floor(Math.random() * 1000)}?w=150&h=150&fit=crop&crop=face`,
-      joinedDate: new Date().toISOString().split('T')[0],
-      verificationStatus: 'pending',
-      profileCompleted: false
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'register', ...userData }),
+      })
+      const result = await response.json()
+      if (result.success && result.user) {
+        authUtils.setCurrentUser(result.user)
+        return { success: true, user: result.user }
+      }
+      return { success: false, error: result.error || 'Registration failed' }
+    } catch {
+      return { success: false, error: 'Network error. Please try again.' }
     }
-
-    const token = `mock_token_${newUser.id}_${Date.now()}`
-    
-    // Store in localStorage
-    localStorage.setItem('auth_token', token)
-    localStorage.setItem('current_user', JSON.stringify(newUser))
-    
-    return { success: true, user: newUser }
   },
 
-  // Logout function
+  // Logout: clear the cached user and ask the server to clear the session cookie.
   logout: (): void => {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('current_user')
+      localStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem('auth_token') // remove any legacy key from older builds
+      localStorage.removeItem('user_data') // remove any legacy key from older builds
+      void fetch('/api/auth', { method: 'DELETE' }).catch(() => {})
     }
   },
 

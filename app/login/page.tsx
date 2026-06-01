@@ -25,11 +25,15 @@ export default function LoginPage() {
 
     try {
       const result = await authUtils.login(formData.email, formData.password)
-      
+
       if (result.success && result.user) {
-        // Redirect based on user role
-        const redirectPath = getRedirectPath(result.user.role)
-        router.push(redirectPath)
+        // Honor a ?redirect= target from middleware (only same-origin paths,
+        // to avoid open-redirects); otherwise fall back to the role's home.
+        const requested = new URLSearchParams(window.location.search).get('redirect')
+        const safeRedirect = requested && requested.startsWith('/') && !requested.startsWith('//')
+          ? requested
+          : getRedirectPath(result.user.role)
+        router.push(safeRedirect)
       } else {
         setError(result.error || 'Login failed')
       }

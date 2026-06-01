@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, User, Lock, Mail, Building, UserCheck } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
+import { authUtils, getRedirectPath } from '../utils/auth'
 
 export default function JoinPage() {
   const router = useRouter()
@@ -40,27 +41,18 @@ export default function JoinPage() {
     setError('')
 
     try {
-      const response = await fetch('/api/auth', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          role: selectedRole,
-          action: 'register'
-        }),
+      // Single unified registration flow: this creates the signed session
+      // cookie AND caches the user under the same key getCurrentUser() reads,
+      // so the dashboard sees an authenticated user after redirect (C1).
+      const result = await authUtils.register({
+        email: formData.email,
+        password: formData.password,
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        role: selectedRole,
       })
 
-      const result = await response.json()
-
-      if (result.success) {
-        // Store token in localStorage
-        localStorage.setItem('auth_token', result.token)
-        localStorage.setItem('user_data', JSON.stringify(result.user))
-        
-        // Redirect to dashboard
-        router.push('/dashboard')
+      if (result.success && result.user) {
+        router.push(getRedirectPath(result.user.role))
       } else {
         setError(result.error || 'Registration failed')
       }
