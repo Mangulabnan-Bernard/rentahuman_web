@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import DashboardSidebar from '../components/DashboardSidebar'
-import Tabs from '../components/Tabs'
+import DashboardSidebar from '../../components/DashboardSidebar'
+import Tabs from '../../components/Tabs'
 import { User, Bell, Shield, Globe, CreditCard, Mail, Smartphone, Moon, Sun } from 'lucide-react'
 
 const ProfileSettings = () => {

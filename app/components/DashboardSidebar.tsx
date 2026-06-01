@@ -2,17 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { 
-  LayoutDashboard, 
-  User, 
-  Briefcase, 
-  DollarSign, 
-  Settings, 
-  MessageSquare,
-  Calendar,
-  FileText,
-  Bell,
-  HelpCircle
+import {
+  LayoutDashboard,
+  User,
+  Briefcase,
+  DollarSign,
+  Settings
 } from 'lucide-react'
 
 interface SidebarItem {
@@ -22,6 +17,9 @@ interface SidebarItem {
   badge?: number
 }
 
+// Only routes that actually exist are listed here. Links to pages that were
+// never built (Messages, Calendar, Documents, Notifications, Help) were removed
+// to eliminate 404s in dashboard navigation.
 const sidebarItems: SidebarItem[] = [
   {
     name: 'Dashboard',
@@ -45,36 +43,9 @@ const sidebarItems: SidebarItem[] = [
     icon: <DollarSign className="w-5 h-5" />
   },
   {
-    name: 'Messages',
-    href: '/dashboard/messages',
-    icon: <MessageSquare className="w-5 h-5" />,
-    badge: 2
-  },
-  {
-    name: 'Calendar',
-    href: '/dashboard/calendar',
-    icon: <Calendar className="w-5 h-5" />
-  },
-  {
-    name: 'Documents',
-    href: '/dashboard/documents',
-    icon: <FileText className="w-5 h-5" />
-  },
-  {
-    name: 'Notifications',
-    href: '/dashboard/notifications',
-    icon: <Bell className="w-5 h-5" />,
-    badge: 5
-  },
-  {
     name: 'Settings',
     href: '/dashboard/settings',
     icon: <Settings className="w-5 h-5" />
-  },
-  {
-    name: 'Help & Support',
-    href: '/dashboard/help',
-    icon: <HelpCircle className="w-5 h-5" />
   }
 ]
 
@@ -130,7 +101,7 @@ export default function DashboardSidebar() {
             Check out our documentation or contact support
           </p>
           <Link
-            href="/help"
+            href="/contact"
             className="text-primary text-sm hover:underline"
           >
             Get Help →

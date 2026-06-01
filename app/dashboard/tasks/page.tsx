@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import DashboardSidebar from '../components/DashboardSidebar'
-import Tabs from '../components/Tabs'
+import DashboardSidebar from '../../components/DashboardSidebar'
+import Tabs from '../../components/Tabs'
 import { Briefcase, Clock, DollarSign, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react'
 
 const mockTasks = [

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import DashboardSidebar from '../components/DashboardSidebar'
-import Tabs from '../components/Tabs'
+import DashboardSidebar from '../../components/DashboardSidebar'
+import Tabs from '../../components/Tabs'
 import { DollarSign, TrendingUp, Calendar, Download, ArrowUpRight, CheckCircle } from 'lucide-react'
 
 const mockEarnings = [

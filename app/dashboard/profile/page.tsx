@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import DashboardSidebar from '../components/DashboardSidebar'
-import Tabs from '../components/Tabs'
+import DashboardSidebar from '../../components/DashboardSidebar'
+import Tabs from '../../components/Tabs'
 import { User, Mail, Phone, MapPin, Briefcase, Star, Camera, Edit, Save, X } from 'lucide-react'
 
 const ProfileInfo = () => {
