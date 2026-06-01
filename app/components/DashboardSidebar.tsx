@@ -1,14 +1,18 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   User,
   Briefcase,
   DollarSign,
-  Settings
+  Settings,
+  LogOut
 } from 'lucide-react'
+import { authUtils, getRoleDisplayName, type User as AuthUser } from '../utils/auth'
+import { useToast } from './Toast'
 
 interface SidebarItem {
   name: string
@@ -51,6 +55,21 @@ const sidebarItems: SidebarItem[] = [
 
 export default function DashboardSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+  const toast = useToast()
+  const [user, setUser] = useState<AuthUser | null>(null)
+
+  // Read the user after mount to avoid an SSR/CSR hydration mismatch.
+  useEffect(() => {
+    setUser(authUtils.getCurrentUser())
+  }, [])
+
+  const handleLogout = () => {
+    authUtils.logout()
+    toast('You have been signed out')
+    router.push('/')
+    router.refresh()
+  }
 
   return (
     <aside className="w-64 bg-card border-r border-border min-h-screen">
@@ -94,19 +113,38 @@ export default function DashboardSidebar() {
         </ul>
       </nav>
 
-      <div className="px-6 py-4 border-t border-border">
-        <div className="bg-muted/50 rounded-lg p-4">
-          <h4 className="font-semibold text-foreground mb-2">Need Help?</h4>
-          <p className="text-sm text-muted-foreground mb-3">
-            Check out our documentation or contact support
-          </p>
-          <Link
-            href="/contact"
-            className="text-primary text-sm hover:underline"
-          >
-            Get Help →
-          </Link>
-        </div>
+      <div className="px-4 py-4 border-t border-border space-y-3">
+        {user && (
+          <div className="flex items-center gap-3 px-2">
+            {user.avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full object-cover" />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                <User className="w-4 h-4 text-primary" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">{user.name}</p>
+              <p className="text-xs text-muted-foreground">{getRoleDisplayName(user.role)}</p>
+            </div>
+          </div>
+        )}
+
+        <Link
+          href="/contact"
+          className="block text-sm text-muted-foreground hover:text-foreground px-2"
+        >
+          Help &amp; support
+        </Link>
+
+        <button
+          onClick={handleLogout}
+          className="flex w-full items-center gap-3 px-2 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+        >
+          <LogOut className="w-5 h-5" />
+          <span className="font-medium">Log out</span>
+        </button>
       </div>
     </aside>
   )

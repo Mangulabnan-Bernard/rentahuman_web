@@ -5,10 +5,12 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
+import { useToast } from './Toast'
 import { authUtils, type User, UserRole, getRoleDisplayName, getRedirectPath } from '../utils/auth'
 
 export default function Navbar() {
   const router = useRouter()
+  const toast = useToast()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [user, setUser] = useState<User | null>(null)
 
@@ -20,7 +22,9 @@ export default function Navbar() {
   const handleLogout = () => {
     authUtils.logout()
     setUser(null)
+    toast('You have been signed out')
     router.push('/')
+    router.refresh()
   }
 
   const canAccessFeature = (feature: string) => {
