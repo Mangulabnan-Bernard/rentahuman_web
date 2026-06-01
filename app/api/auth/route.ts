@@ -1,60 +1,83 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createSessionToken, verifySessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from '../../lib/session'
+import { verifyCredentials, createUser } from '../../lib/users'
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { email, password, action } = body
-
-    if (action === 'login') {
-      if (email === 'demo@rentahuman.com' && password === 'demo123') {
-        return NextResponse.json({
-          success: true,
-          user: {
-            id: 1,
-            email: 'demo@rentahuman.com',
-            name: 'Demo User',
-            role: 'client',
-            avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face'
-          },
-          token: 'demo-jwt-token'
-        })
-      } else {
-        return NextResponse.json(
-          { success: false, error: 'Invalid credentials' },
-          { status: 401 }
-        )
-      }
-    }
-
-    if (action === 'register') {
-      return NextResponse.json({
-        success: true,
-        user: {
-          id: Date.now(),
-          email: body.email,
-          name: `${body.firstName} ${body.lastName}`,
-          role: body.role,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${body.email}`
-        },
-        token: 'new-user-jwt-token'
-      })
-    }
-
-    return NextResponse.json(
-      { success: false, error: 'Invalid action' },
-      { status: 400 }
-    )
-  } catch (error) {
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
+function withSessionCookie(response: NextResponse, token: string): NextResponse {
+  response.cookies.set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: SESSION_MAX_AGE,
+  })
+  return response
 }
 
-export async function GET() {
-  return NextResponse.json({
-    success: false,
-    error: 'Method not allowed'
-  }, { status: 405 })
+export async function POST(request: NextRequest) {
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid request body' }, { status: 400 })
+  }
+
+  const action = body.action
+
+  if (action === 'login') {
+    const email = String(body.email ?? '')
+    const password = String(body.password ?? '')
+    const user = verifyCredentials(email, password)
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Invalid email or password' }, { status: 401 })
+    }
+    const token = await createSessionToken(user)
+    return withSessionCookie(NextResponse.json({ success: true, user }), token)
+  }
+
+  if (action === 'register') {
+    // Accept either a single `name` or first/last name parts from the form.
+    const name =
+      String(body.name ?? '').trim() ||
+      `${String(body.firstName ?? '').trim()} ${String(body.lastName ?? '').trim()}`.trim()
+
+    const result = createUser({
+      email: String(body.email ?? ''),
+      password: String(body.password ?? ''),
+      name,
+      // Role is re-validated inside createUser; the client cannot escalate here.
+      role: body.role as never,
+    })
+
+    if ('error' in result) {
+      return NextResponse.json({ success: false, error: result.error }, { status: 400 })
+    }
+    const token = await createSessionToken(result.user)
+    return withSessionCookie(NextResponse.json({ success: true, user: result.user }), token)
+  }
+
+  return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 })
+}
+
+/** Returns the current authenticated user from the signed session cookie. */
+export async function GET(request: NextRequest) {
+  const token = request.cookies.get(SESSION_COOKIE)?.value
+  const session = await verifySessionToken(token)
+  if (!session) {
+    return NextResponse.json({ success: false, user: null }, { status: 200 })
+  }
+  const { exp: _exp, ...user } = session
+  return NextResponse.json({ success: true, user }, { status: 200 })
+}
+
+/** Logout: clear the session cookie. */
+export async function DELETE() {
+  const response = NextResponse.json({ success: true })
+  response.cookies.set(SESSION_COOKIE, '', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 0,
+  })
+  return response
 }

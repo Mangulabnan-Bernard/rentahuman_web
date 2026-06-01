@@ -104,6 +104,9 @@ jspm_packages/
 .dynamodb/
 .env*
 
+# ...but DO commit the example template (no real secrets in it)
+!.env.example
+
 # vercel
 .vercel
 
