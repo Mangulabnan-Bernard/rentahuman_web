@@ -14,6 +14,11 @@ export interface User {
   joinedDate?: string
   verificationStatus?: 'verified' | 'pending' | 'unverified'
   profileCompleted?: boolean
+  // Optional profile fields (editable on the dashboard, persisted via /api/profile)
+  bio?: string
+  title?: string
+  hourlyRate?: number
+  location?: string
 }
 
 export interface AuthState {

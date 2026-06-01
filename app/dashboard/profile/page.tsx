@@ -1,30 +1,87 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import DashboardSidebar from '../../components/DashboardSidebar'
 import Tabs from '../../components/Tabs'
+import { useToast } from '../../components/Toast'
+import { authUtils } from '../../utils/auth'
 import { User, Mail, Phone, MapPin, Briefcase, Star, Camera, Edit, Save, X } from 'lucide-react'
 
 const ProfileInfo = () => {
+  const toast = useToast()
   const [isEditing, setIsEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [profile, setProfile] = useState({
-    firstName: 'Sarah',
-    lastName: 'Chen',
-    email: 'sarah.chen@example.com',
-    phone: '+1 (555) 123-4567',
-    location: 'San Francisco, CA',
-    bio: 'Experienced AI Training Specialist with 5+ years of experience in machine learning, data annotation, and model training. Passionate about helping AI systems learn and improve.',
-    title: 'AI Training Specialist',
-    hourlyRate: 75,
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    location: '',
+    bio: '',
+    title: '',
+    hourlyRate: 0,
+    // Languages/skills are not yet part of the persisted model — shown as-is.
     languages: ['English', 'Mandarin', 'Spanish'],
     skills: ['Machine Learning', 'Data Annotation', 'Model Training', 'Python', 'Quality Assurance']
   })
 
-  const handleSave = () => {
-    setIsEditing(false)
+  // Populate the form from the signed-in user's real profile.
+  const loadProfile = () => {
+    fetch('/api/profile')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && data.user) {
+          const u = data.user
+          const [firstName, ...rest] = (u.name ?? '').split(' ')
+          setProfile((prev) => ({
+            ...prev,
+            firstName: firstName ?? '',
+            lastName: rest.join(' '),
+            email: u.email ?? '',
+            title: u.title ?? '',
+            location: u.location ?? '',
+            hourlyRate: u.hourlyRate ?? 0,
+            bio: u.bio ?? '',
+          }))
+        }
+      })
+      .catch(() => {})
+  }
+
+  useEffect(loadProfile, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${profile.firstName} ${profile.lastName}`.trim(),
+          title: profile.title,
+          location: profile.location,
+          hourlyRate: profile.hourlyRate,
+          bio: profile.bio,
+        }),
+      })
+      const data = await res.json()
+      if (data.success && data.user) {
+        const current = authUtils.getCurrentUser()
+        if (current) authUtils.setCurrentUser({ ...current, ...data.user })
+        toast('Profile saved')
+        setIsEditing(false)
+      } else {
+        toast(data.error || 'Could not save profile', 'error')
+      }
+    } catch {
+      toast('Network error. Please try again.', 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleCancel = () => {
+    loadProfile() // revert any unsaved edits
     setIsEditing(false)
   }
 
@@ -45,10 +102,11 @@ const ProfileInfo = () => {
             <div className="flex space-x-2">
               <button
                 onClick={handleSave}
-                className="flex items-center space-x-2 text-primary hover:underline"
+                disabled={saving}
+                className="flex items-center space-x-2 text-primary hover:underline disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />
-                <span>Save</span>
+                <span>{saving ? 'Saving...' : 'Save'}</span>
               </button>
               <button
                 onClick={handleCancel}

@@ -42,7 +42,20 @@ function toAppUser(row: PrismaUser): User {
     joinedDate: row.createdAt ? new Date(row.createdAt).toISOString().split('T')[0] : undefined,
     verificationStatus: row.verificationStatus as User['verificationStatus'],
     profileCompleted: row.profileCompleted,
+    bio: row.bio ?? undefined,
+    title: row.title ?? undefined,
+    hourlyRate: row.hourlyRate ?? undefined,
+    location: row.location ?? undefined,
   }
+}
+
+/** Fields a user may edit on their own profile. */
+export interface ProfileUpdate {
+  name?: string
+  bio?: string
+  title?: string
+  hourlyRate?: number
+  location?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -178,4 +191,67 @@ export async function createUser(input: {
   }
   memoryUsers.push(stored)
   return { user: stripPassword(stored) }
+}
+
+export async function getUserById(id: number): Promise<User | null> {
+  const prisma = getPrisma()
+  if (prisma) {
+    const row = await prisma.user.findUnique({ where: { id } })
+    return row ? toAppUser(row) : null
+  }
+  const match = memoryUsers.find((u) => u.id === id)
+  return match ? stripPassword(match) : null
+}
+
+export async function updateUserProfile(id: number, data: ProfileUpdate): Promise<User | null> {
+  // Copy through only the fields that were actually provided.
+  const patch: ProfileUpdate = {}
+  if (typeof data.name === 'string') patch.name = data.name.trim()
+  if (typeof data.bio === 'string') patch.bio = data.bio
+  if (typeof data.title === 'string') patch.title = data.title
+  if (typeof data.location === 'string') patch.location = data.location
+  if (typeof data.hourlyRate === 'number' && !Number.isNaN(data.hourlyRate)) {
+    patch.hourlyRate = data.hourlyRate
+  }
+
+  const prisma = getPrisma()
+  if (prisma) {
+    const row = await prisma.user.update({ where: { id }, data: patch })
+    return toAppUser(row)
+  }
+
+  const match = memoryUsers.find((u) => u.id === id)
+  if (!match) return null
+  Object.assign(match, patch)
+  return stripPassword(match)
+}
+
+export async function changePassword(
+  id: number,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ ok: true } | { error: string }> {
+  if (!newPassword || newPassword.length < 6) {
+    return { error: 'New password must be at least 6 characters' }
+  }
+
+  const prisma = getPrisma()
+  if (prisma) {
+    const row = await prisma.user.findUnique({ where: { id } })
+    if (!row || !row.passwordHash) return { error: 'Account not found' }
+    if (!(await verifyPassword(currentPassword, row.passwordHash))) {
+      return { error: 'Current password is incorrect' }
+    }
+    await prisma.user.update({
+      where: { id },
+      data: { passwordHash: await hashPassword(newPassword) },
+    })
+    return { ok: true }
+  }
+
+  const match = memoryUsers.find((u) => u.id === id)
+  if (!match) return { error: 'Account not found' }
+  if (match.password !== currentPassword) return { error: 'Current password is incorrect' }
+  match.password = newPassword
+  return { ok: true }
 }
