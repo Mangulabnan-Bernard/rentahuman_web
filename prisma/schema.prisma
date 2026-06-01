@@ -1,12 +1,17 @@
-// Prisma schema for RentHuman.
+// Prisma schema for RentHuman (MySQL).
 //
-// This is the persistence foundation referenced by the audit. The running demo
-// still uses in-memory mock data (app/lib/users.ts, app/mock/*); wiring these
-// models in requires a live database (set DATABASE_URL) and `prisma migrate`.
-//
+// Setup:
 //   1. Set DATABASE_URL in .env.local (see .env.example)
 //   2. npx prisma generate
 //   3. npx prisma migrate dev --name init
+//   4. npx prisma db seed         (creates the demo accounts)
+//
+// The running app uses Prisma when DATABASE_URL is set and falls back to an
+// in-memory store otherwise (see app/lib/users.ts), so the demo works with or
+// without a database.
+//
+// Enum values are lowercase and ids are Int to match the application's existing
+// types (app/utils/auth.ts), so no mapping layer is required.
 
 generator client {
   provider = "prisma-client-js"
@@ -14,49 +19,51 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
+  // Prisma 7: the connection URL lives in prisma.config.ts (loaded from
+  // DATABASE_URL) and is supplied to PrismaClient via a driver adapter.
 }
 
 enum Role {
-  CLIENT
-  AGENT
-  ADMIN
+  client
+  agent
+  admin
 }
 
 enum VerificationStatus {
-  UNVERIFIED
-  PENDING
-  VERIFIED
+  unverified
+  pending
+  verified
 }
 
 enum TaskStatus {
-  OPEN
-  IN_PROGRESS
-  COMPLETED
-  DISPUTED
+  open
+  in_progress
+  completed
+  disputed
 }
 
 enum Urgency {
-  LOW
-  MEDIUM
-  HIGH
+  low
+  medium
+  high
 }
 
 enum EarningStatus {
-  PENDING
-  CLAIMABLE
-  PAID_OUT
+  pending
+  claimable
+  paid_out
 }
 
 model User {
-  id                 String             @id @default(cuid())
+  id                 Int                @id @default(autoincrement())
   name               String?
   email              String             @unique
   emailVerified      DateTime?
   passwordHash       String? // null for OAuth-only accounts
   image              String?
-  role               Role               @default(CLIENT)
-  verificationStatus VerificationStatus @default(UNVERIFIED)
+  role               Role               @default(client)
+  verificationStatus VerificationStatus @default(unverified)
+  profileCompleted   Boolean            @default(false)
   bio                String?            @db.Text
   title              String?
   hourlyRate         Int?
@@ -75,21 +82,21 @@ model User {
 }
 
 model Task {
-  id              String     @id @default(cuid())
+  id              Int        @id @default(autoincrement())
   title           String
   description     String     @db.Text
   category        String
   budget          Decimal    @db.Decimal(10, 2)
   deadline        DateTime?
   location        String?    @default("Remote")
-  status          TaskStatus @default(OPEN)
-  urgency         Urgency    @default(MEDIUM)
+  status          TaskStatus @default(open)
+  urgency         Urgency    @default(medium)
   skills          Json?
   progress        Int        @default(0)
   applicants      Int        @default(0)
-  postedById      String
+  postedById      Int
   postedBy        User       @relation("PostedTasks", fields: [postedById], references: [id])
-  assignedAgentId String?
+  assignedAgentId Int?
   assignedAgent   User?      @relation("AssignedTasks", fields: [assignedAgentId], references: [id])
   earnings        Earning[]
   createdAt       DateTime   @default(now())
@@ -101,13 +108,13 @@ model Task {
 }
 
 model Earning {
-  id          String        @id @default(cuid())
-  taskId      String?
+  id          Int           @id @default(autoincrement())
+  taskId      Int?
   task        Task?         @relation(fields: [taskId], references: [id])
-  agentId     String
+  agentId     Int
   agent       User          @relation(fields: [agentId], references: [id])
   amount      Decimal       @db.Decimal(10, 2)
-  status      EarningStatus @default(PENDING)
+  status      EarningStatus @default(pending)
   description String?       @db.Text
   date        DateTime      @default(now())
   payoutDate  DateTime?
@@ -122,8 +129,8 @@ model Earning {
 // ---------------------------------------------------------------------------
 
 model Account {
-  id                String  @id @default(cuid())
-  userId            String
+  id                Int     @id @default(autoincrement())
+  userId            Int
   type              String
   provider          String
   providerAccountId String
@@ -140,9 +147,9 @@ model Account {
 }
 
 model Session {
-  id           String   @id @default(cuid())
+  id           Int      @id @default(autoincrement())
   sessionToken String   @unique
-  userId       String
+  userId       Int
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

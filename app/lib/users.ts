@@ -1,34 +1,61 @@
 /**
  * Server-only user store.
  *
- * In a real deployment this module would be backed by the database (see
- * prisma/schema.prisma). For this demo it holds an in-memory list of users.
+ * Backed by Prisma/MySQL when DATABASE_URL is configured; otherwise falls back
+ * to an in-memory list so the demo runs without a database. In both modes the
+ * registration role is validated server-side (admin is never self-assignable),
+ * which is what closes the privilege-escalation hole.
  *
- * IMPORTANT: this file must only ever be imported by server code (route
- * handlers / server components). Keeping credentials and role logic here ensures
- * password hashes and the credential list are never shipped in the client bundle.
+ * Must only ever be imported by server code (route handlers / server
+ * components) so credentials never reach the client bundle.
  */
 
+import type { User as PrismaUser } from '@prisma/client'
 import type { User, UserRole } from '../utils/auth'
+import { getPrisma } from './prisma'
+import { hashPassword, verifyPassword } from './password'
 
-interface StoredUser extends User {
-  password: string
-}
+type SelfAssignableRole = 'client' | 'agent'
 
 /**
- * Roles a user is allowed to self-assign at registration. `admin` is
- * deliberately excluded — it can never be granted through the public sign-up
- * flow, which closes the privilege-escalation hole.
+ * Roles a user may self-assign at registration. `admin` is deliberately
+ * excluded — it can never be granted through public sign-up.
  */
-const SELF_ASSIGNABLE_ROLES: UserRole[] = ['client', 'agent']
+const SELF_ASSIGNABLE_ROLES: SelfAssignableRole[] = ['client', 'agent']
 
-export function isSelfAssignableRole(role: unknown): role is UserRole {
+export function isSelfAssignableRole(role: unknown): role is SelfAssignableRole {
   return typeof role === 'string' && (SELF_ASSIGNABLE_ROLES as string[]).includes(role)
 }
 
-// Seed accounts for the demo. Passwords are plaintext only because there is no
-// database; with Prisma these become hashed columns and this array goes away.
-const users: StoredUser[] = [
+function avatarFor(email: string): string {
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`
+}
+
+// Map a Prisma row to the app's User shape (enum values and ids already match).
+function toAppUser(row: PrismaUser): User {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name ?? '',
+    role: row.role as UserRole,
+    avatar: row.image ?? undefined,
+    joinedDate: row.createdAt ? new Date(row.createdAt).toISOString().split('T')[0] : undefined,
+    verificationStatus: row.verificationStatus as User['verificationStatus'],
+    profileCompleted: row.profileCompleted,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// In-memory fallback (used only when DATABASE_URL is unset). Passwords are
+// plaintext here purely because it is a throwaway demo store; the Prisma path
+// stores scrypt hashes.
+// ---------------------------------------------------------------------------
+
+interface MemoryUser extends User {
+  password: string
+}
+
+const memoryUsers: MemoryUser[] = [
   {
     id: 1,
     email: 'demo@rentahuman.com',
@@ -64,55 +91,91 @@ const users: StoredUser[] = [
   },
 ]
 
-function stripPassword(user: StoredUser): User {
+let nextMemoryId = 100
+
+function stripPassword(user: MemoryUser): User {
   const { password: _password, ...safe } = user
   return safe
 }
 
-/** Validate credentials. Returns the user (without password) on success. */
-export function verifyCredentials(email: string, password: string): User | null {
-  const match = users.find((u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password)
+// ---------------------------------------------------------------------------
+// Public API (async; works against Prisma or the in-memory fallback)
+// ---------------------------------------------------------------------------
+
+export async function verifyCredentials(email: string, password: string): Promise<User | null> {
+  const prisma = getPrisma()
+  if (prisma) {
+    const row = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })
+    if (!row || !row.passwordHash) return null
+    const ok = await verifyPassword(password, row.passwordHash)
+    return ok ? toAppUser(row) : null
+  }
+
+  const match = memoryUsers.find(
+    (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+  )
   return match ? stripPassword(match) : null
 }
 
-export function findUserByEmail(email: string): User | null {
-  const match = users.find((u) => u.email.toLowerCase() === email.toLowerCase())
+export async function findUserByEmail(email: string): Promise<User | null> {
+  const prisma = getPrisma()
+  if (prisma) {
+    const row = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })
+    return row ? toAppUser(row) : null
+  }
+
+  const match = memoryUsers.find((u) => u.email.toLowerCase() === email.toLowerCase())
   return match ? stripPassword(match) : null
 }
 
-let nextId = 100
-
-/**
- * Register a new user. The role is validated server-side: anything other than a
- * self-assignable role is rejected before a session is ever issued.
- */
-export function createUser(input: {
+export async function createUser(input: {
   email: string
   password: string
   name: string
   role: UserRole
-}): { user: User } | { error: string } {
+}): Promise<{ user: User } | { error: string }> {
   if (!input.email || !input.password || !input.name) {
     return { error: 'Email, password and name are required' }
   }
-  if (!isSelfAssignableRole(input.role)) {
+  const role = input.role
+  if (!isSelfAssignableRole(role)) {
     return { error: 'Invalid role selection' }
   }
-  if (findUserByEmail(input.email)) {
-    return { error: 'An account with this email already exists' }
+  const email = input.email.toLowerCase()
+
+  const prisma = getPrisma()
+  if (prisma) {
+    if (await prisma.user.findUnique({ where: { email } })) {
+      return { error: 'An account with this email already exists' }
+    }
+    const row = await prisma.user.create({
+      data: {
+        email,
+        name: input.name,
+        role,
+        passwordHash: await hashPassword(input.password),
+        image: avatarFor(email),
+        verificationStatus: 'pending',
+        profileCompleted: false,
+      },
+    })
+    return { user: toAppUser(row) }
   }
 
-  const stored: StoredUser = {
-    id: nextId++,
-    email: input.email,
+  if (memoryUsers.some((u) => u.email.toLowerCase() === email)) {
+    return { error: 'An account with this email already exists' }
+  }
+  const stored: MemoryUser = {
+    id: nextMemoryId++,
+    email,
     password: input.password,
     name: input.name,
-    role: input.role,
-    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(input.email)}`,
+    role,
+    avatar: avatarFor(email),
     joinedDate: new Date().toISOString().split('T')[0],
     verificationStatus: 'pending',
     profileCompleted: false,
   }
-  users.push(stored)
+  memoryUsers.push(stored)
   return { user: stripPassword(stored) }
 }

@@ -74,17 +74,25 @@ prisma/           Database schema (MySQL)
 
 ## Database
 
-`prisma/schema.prisma` defines the MySQL models (`User`, `Task`, `Earning`, plus the
-Auth.js adapter tables). To move off mock data:
+The app uses **Prisma + MySQL** when `DATABASE_URL` is set, and transparently falls
+back to an in-memory store when it is not — so the demo runs either way
+(`app/lib/users.ts`, `app/lib/prisma.ts`).
+
+`prisma/schema.prisma` defines the models (`User`, `Task`, `Earning`, plus the Auth.js
+adapter tables). Prisma 7 keeps the connection URL in `prisma.config.ts` (read from
+`DATABASE_URL`) and connects through the MariaDB/MySQL driver adapter.
+
+To run against a real database:
 
 ```bash
-# 1. set DATABASE_URL in .env.local
-npx prisma generate
-npx prisma migrate dev --name init
+# 1. set DATABASE_URL in .env.local, e.g. mysql://user:pass@localhost:3306/rentahuman
+npm run db:migrate     # create tables (prisma migrate dev)
+npm run db:seed        # insert the demo accounts (hashed passwords)
 ```
 
-Then replace the in-memory store in `app/lib/users.ts` and the mock data in
-`app/mock/*` with Prisma queries.
+Useful scripts: `db:migrate`, `db:deploy` (prod), `db:seed`, `db:studio`. The Prisma
+client is generated automatically on `npm install` (postinstall) and can be
+regenerated with `npx prisma generate`.
 
 ## Scripts
 

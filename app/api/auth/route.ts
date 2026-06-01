@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   if (action === 'login') {
     const email = String(body.email ?? '')
     const password = String(body.password ?? '')
-    const user = verifyCredentials(email, password)
+    const user = await verifyCredentials(email, password)
     if (!user) {
       return NextResponse.json({ success: false, error: 'Invalid email or password' }, { status: 401 })
     }
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       String(body.name ?? '').trim() ||
       `${String(body.firstName ?? '').trim()} ${String(body.lastName ?? '').trim()}`.trim()
 
-    const result = createUser({
+    const result = await createUser({
       email: String(body.email ?? ''),
       password: String(body.password ?? ''),
       name,
