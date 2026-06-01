@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifySessionToken, SESSION_COOKIE } from '../../lib/session'
 
 const dummyAgents = [
   {
@@ -78,6 +79,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // Creating/updating an agent profile requires an authenticated session.
+  const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value)
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
+  }
+
   try {
     const body = await request.json()
     const { name, email, role, skills, hourlyRate, location } = body

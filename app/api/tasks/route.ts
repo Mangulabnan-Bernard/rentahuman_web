@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifySessionToken, SESSION_COOKIE } from '../../lib/session'
 
 const dummyTasks = [
   {
@@ -66,6 +67,16 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // Posting a task requires an authenticated client. The role is read from the
+  // signed session cookie, never from the request body or client storage.
+  const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value)
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
+  }
+  if (session.role !== 'client' && session.role !== 'admin') {
+    return NextResponse.json({ success: false, error: 'Only clients can post tasks' }, { status: 403 })
+  }
+
   try {
     const body = await request.json()
     const { title, description, category, budget, deadline, location, skills, urgency } = body
@@ -80,7 +91,7 @@ export async function POST(request: NextRequest) {
       location,
       applicants: 0,
       status: "open",
-      postedBy: "Current User",
+      postedBy: session.name, // derived from the authenticated session, not client input
       postedDate: "Just now",
       skills,
       urgency

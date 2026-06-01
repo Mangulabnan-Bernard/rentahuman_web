@@ -31,7 +31,7 @@ export const mockApi = {
       }
       if (filters.search) {
         const searchLower = filters.search.toLowerCase()
-        return !(
+        return (
           user.name.toLowerCase().includes(searchLower) ||
           user.role.toLowerCase().includes(searchLower) ||
           user.location.toLowerCase().includes(searchLower) ||
@@ -57,7 +57,7 @@ export const mockApi = {
       }
       if (filters.search) {
         const searchLower = filters.search.toLowerCase()
-        return !(
+        return (
           task.title.toLowerCase().includes(searchLower) ||
           task.description.toLowerCase().includes(searchLower) ||
           task.skills.some((skill: string) => skill.toLowerCase().includes(searchLower))
@@ -100,7 +100,7 @@ export const mockApi = {
       }
       if (filters.search) {
         const searchLower = filters.search.toLowerCase()
-        return !(
+        return (
           client.name.toLowerCase().includes(searchLower) ||
           client.company.toLowerCase().includes(searchLower) ||
           client.industry.toLowerCase().includes(searchLower)
