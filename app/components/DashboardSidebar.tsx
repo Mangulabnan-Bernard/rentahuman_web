@@ -9,9 +9,11 @@ import {
   Briefcase,
   DollarSign,
   Settings,
+  Shield,
+  PlusCircle,
   LogOut
 } from 'lucide-react'
-import { authUtils, getRoleDisplayName, type User as AuthUser } from '../utils/auth'
+import { authUtils, getRoleDisplayName, type User as AuthUser, type UserRole } from '../utils/auth'
 import { useToast } from './Toast'
 
 interface SidebarItem {
@@ -19,11 +21,12 @@ interface SidebarItem {
   href: string
   icon: React.ReactNode
   badge?: number
+  // If set, the item only shows for these roles; otherwise it shows for everyone.
+  roles?: UserRole[]
 }
 
-// Only routes that actually exist are listed here. Links to pages that were
-// never built (Messages, Calendar, Documents, Notifications, Help) were removed
-// to eliminate 404s in dashboard navigation.
+// Only routes that actually exist are listed here, and items are filtered by the
+// signed-in user's role (e.g. Earnings is agent-only; Admin is admin-only).
 const sidebarItems: SidebarItem[] = [
   {
     name: 'Dashboard',
@@ -38,18 +41,30 @@ const sidebarItems: SidebarItem[] = [
   {
     name: 'Tasks',
     href: '/dashboard/tasks',
-    icon: <Briefcase className="w-5 h-5" />,
-    badge: 3
+    icon: <Briefcase className="w-5 h-5" />
+  },
+  {
+    name: 'Post a Task',
+    href: '/submit-task',
+    icon: <PlusCircle className="w-5 h-5" />,
+    roles: ['client', 'admin']
   },
   {
     name: 'Earnings',
     href: '/dashboard/earnings',
-    icon: <DollarSign className="w-5 h-5" />
+    icon: <DollarSign className="w-5 h-5" />,
+    roles: ['agent', 'admin']
   },
   {
     name: 'Settings',
     href: '/dashboard/settings',
     icon: <Settings className="w-5 h-5" />
+  },
+  {
+    name: 'Admin Console',
+    href: '/admin',
+    icon: <Shield className="w-5 h-5" />,
+    roles: ['admin']
   }
 ]
 
@@ -81,7 +96,9 @@ export default function DashboardSidebar() {
 
       <nav className="px-4 pb-6">
         <ul className="space-y-2">
-          {sidebarItems.map((item) => {
+          {sidebarItems
+            .filter((item) => !item.roles || (user != null && item.roles.includes(user.role)))
+            .map((item) => {
             const isActive = pathname === item.href
             return (
               <li key={item.name}>

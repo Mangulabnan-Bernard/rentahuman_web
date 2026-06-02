@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import DashboardSidebar from '../components/DashboardSidebar'
 import Tabs from '../components/Tabs'
+import { authUtils } from '../utils/auth'
 import { 
   DollarSign, 
   Briefcase, 
@@ -179,6 +180,13 @@ const QuickActions = () => (
 )
 
 export default function DashboardPage() {
+  const [firstName, setFirstName] = useState('')
+
+  useEffect(() => {
+    const user = authUtils.getCurrentUser()
+    if (user?.name) setFirstName(user.name.split(' ')[0])
+  }, [])
+
   const tabs = [
     {
       id: 'overview',
@@ -205,7 +213,7 @@ export default function DashboardPage() {
         <main className="flex-1 p-8">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground mb-2">
-              Welcome back, Sarah!
+              Welcome back{firstName ? `, ${firstName}` : ''}!
             </h1>
             <p className="text-muted-foreground">
               Here's what's happening with your tasks and earnings today.
