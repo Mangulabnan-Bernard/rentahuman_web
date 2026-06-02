@@ -18,9 +18,9 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  // Prisma 7: the connection URL lives in prisma.config.ts (loaded from
-  // DATABASE_URL) and is supplied to PrismaClient via a driver adapter.
+  provider = "postgresql"
+  // Prisma 7: connection URLs live in prisma.config.ts (migrations use
+  // DIRECT_URL) and are supplied to PrismaClient via the pg driver adapter.
 }
 
 enum Role {
@@ -68,7 +68,7 @@ model User {
   title              String?
   hourlyRate         Int?
   location           String?
-  skills             Json? // string[] stored as JSON (MySQL has no array type)
+  skills             Json? // string[] stored as JSON for portability
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 

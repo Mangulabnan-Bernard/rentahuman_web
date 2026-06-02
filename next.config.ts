@@ -13,9 +13,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Keep Prisma and the native MySQL driver out of the server bundle; they are
-  // required at runtime in Node route handlers instead.
-  serverExternalPackages: ["@prisma/client", "@prisma/adapter-mariadb", "mariadb"],
+  // Keep Prisma and the native Postgres driver out of the server bundle; they
+  // are required at runtime in Node route handlers instead.
+  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg"],
   async headers() {
     return [
       {

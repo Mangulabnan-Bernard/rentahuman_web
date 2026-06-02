@@ -74,25 +74,34 @@ prisma/           Database schema (MySQL)
 
 ## Database
 
-The app uses **Prisma + MySQL** when `DATABASE_URL` is set, and transparently falls
-back to an in-memory store when it is not — so the demo runs either way
-(`app/lib/users.ts`, `app/lib/prisma.ts`).
+The app uses **Prisma + PostgreSQL** when `DATABASE_URL` is set, and transparently
+falls back to an in-memory store when it is not — so the demo runs either way
+(`app/lib/users.ts`, `app/lib/prisma.ts`). It connects through the `pg` driver adapter
+(Prisma 7); the connection URLs live in `prisma.config.ts`.
 
 `prisma/schema.prisma` defines the models (`User`, `Task`, `Earning`, plus the Auth.js
-adapter tables). Prisma 7 keeps the connection URL in `prisma.config.ts` (read from
-`DATABASE_URL`) and connects through the MariaDB/MySQL driver adapter.
+adapter tables).
 
-To run against a real database:
+### Set up (Supabase or any Postgres)
+
+In `.env.local` set:
+
+- `DATABASE_URL` — runtime connection. On Supabase use the **Transaction pooler**
+  (port `6543`); it works on serverless/Vercel.
+- `DIRECT_URL` — direct/session connection (port `5432`), used to sync the schema.
+
+(Supabase: *Project Settings → Database → Connection string → ORM* gives you both.)
+
+Then:
 
 ```bash
-# 1. set DATABASE_URL in .env.local, e.g. mysql://user:pass@localhost:3306/rentahuman
-npm run db:migrate     # create tables (prisma migrate dev)
-npm run db:seed        # insert the demo accounts (hashed passwords)
+npm run db:push     # create tables + enums (no shadow DB needed — Supabase-friendly)
+npm run db:seed     # insert the demo accounts + sample tasks/earnings
 ```
 
-Useful scripts: `db:migrate`, `db:deploy` (prod), `db:seed`, `db:studio`. The Prisma
-client is generated automatically on `npm install` (postinstall) and can be
-regenerated with `npx prisma generate`.
+Useful scripts: `db:push`, `db:seed`, `db:studio`. The Prisma client is generated
+automatically on `npm install` (postinstall). For environments that support a shadow
+database you can use migrations instead (`db:migrate` / `db:deploy`).
 
 ## Scripts
 

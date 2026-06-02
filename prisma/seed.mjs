@@ -6,7 +6,7 @@
 // public self-registration is restricted from assigning the admin role.
 
 import { PrismaClient } from '@prisma/client'
-import { PrismaMariaDb } from '@prisma/adapter-mariadb'
+import { PrismaPg } from '@prisma/adapter-pg'
 import { scrypt, randomBytes } from 'node:crypto'
 import { promisify } from 'node:util'
 
@@ -18,13 +18,18 @@ async function hashPassword(password) {
   return `scrypt$${salt.toString('hex')}$${derived.toString('hex')}`
 }
 
-const url = process.env.DATABASE_URL
+// Seed over the direct/session connection (more reliable than the pooler).
+const url = process.env.DIRECT_URL || process.env.DATABASE_URL
 if (!url) {
-  console.error('DATABASE_URL is not set. Add it to .env.local before seeding.')
+  console.error('DIRECT_URL/DATABASE_URL is not set. Add it to .env.local before seeding.')
   process.exit(1)
 }
 
-const prisma = new PrismaClient({ adapter: new PrismaMariaDb(url) })
+const isLocal = /@(localhost|127\.0\.0\.1)[:/]/.test(url)
+const adapter = isLocal
+  ? new PrismaPg(url)
+  : new PrismaPg({ connectionString: url, ssl: { rejectUnauthorized: false } })
+const prisma = new PrismaClient({ adapter })
 
 const demoUsers = [
   {
