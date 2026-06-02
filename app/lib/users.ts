@@ -255,3 +255,57 @@ export async function changePassword(
   match.password = newPassword
   return { ok: true }
 }
+
+/**
+ * Find or create a user from an OAuth profile (Google/GitHub). Matches on email.
+ * New OAuth accounts default to the `client` role and are treated as verified
+ * (the provider verified the email). They have no password — sign-in is via OAuth.
+ */
+export async function upsertOAuthUser(input: {
+  email: string
+  name?: string
+  image?: string
+}): Promise<User> {
+  const email = input.email.toLowerCase()
+
+  const prisma = getPrisma()
+  if (prisma) {
+    const row = await prisma.user.upsert({
+      where: { email },
+      update: {
+        // Refresh display fields, but never downgrade an existing role.
+        name: input.name || undefined,
+        image: input.image || undefined,
+      },
+      create: {
+        email,
+        name: input.name || email.split('@')[0],
+        image: input.image,
+        role: 'client',
+        verificationStatus: 'verified',
+        profileCompleted: false,
+      },
+    })
+    return toAppUser(row)
+  }
+
+  const existing = memoryUsers.find((u) => u.email.toLowerCase() === email)
+  if (existing) {
+    if (input.name) existing.name = input.name
+    if (input.image) existing.avatar = input.image
+    return stripPassword(existing)
+  }
+  const stored: MemoryUser = {
+    id: nextMemoryId++,
+    email,
+    password: '', // OAuth-only account
+    name: input.name || email.split('@')[0],
+    role: 'client',
+    avatar: input.image,
+    joinedDate: new Date().toISOString().split('T')[0],
+    verificationStatus: 'verified',
+    profileCompleted: false,
+  }
+  memoryUsers.push(stored)
+  return stripPassword(stored)
+}

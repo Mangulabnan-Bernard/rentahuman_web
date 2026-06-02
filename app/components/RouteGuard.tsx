@@ -31,24 +31,47 @@ export default function RouteGuard({
   const [status, setStatus] = useState<GuardStatus>('checking')
 
   useEffect(() => {
-    const user = authUtils.getCurrentUser()
+    let cancelled = false
 
-    if (!user) {
-      router.replace(fallbackPath)
-      return
+    async function verify() {
+      let user = authUtils.getCurrentUser()
+
+      // No cached user (e.g. just signed in via OAuth) — hydrate from the
+      // server session cookie, which is the real source of truth.
+      if (!user) {
+        try {
+          const res = await fetch('/api/auth')
+          const data = await res.json()
+          if (data.success && data.user) {
+            authUtils.setCurrentUser(data.user)
+            user = data.user
+          }
+        } catch {
+          // fall through to the unauthenticated path
+        }
+      }
+
+      if (cancelled) return
+
+      if (!user) {
+        router.replace(fallbackPath)
+        return
+      }
+      if (requiredRole && user.role !== requiredRole) {
+        router.replace('/unauthorized')
+        return
+      }
+      if (allowedRoles && !allowedRoles.includes(user.role)) {
+        router.replace('/unauthorized')
+        return
+      }
+      setStatus('authorized')
     }
 
-    if (requiredRole && user.role !== requiredRole) {
-      router.replace('/unauthorized')
-      return
+    verify()
+    return () => {
+      cancelled = true
     }
-
-    if (allowedRoles && !allowedRoles.includes(user.role)) {
-      router.replace('/unauthorized')
-      return
-    }
-
-    setStatus('authorized')
   }, [router, requiredRole, allowedRoles, fallbackPath])
 
   if (status === 'checking') {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, User, Lock } from 'lucide-react'
@@ -13,10 +13,34 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [providers, setProviders] = useState({ google: false, github: false })
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   })
+
+  // Discover which OAuth providers are configured, and surface OAuth errors
+  // that the callback may have redirected back with (?error=...).
+  useEffect(() => {
+    fetch('/api/auth/providers')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) setProviders(data.providers)
+      })
+      .catch(() => {})
+
+    const reason = new URLSearchParams(window.location.search).get('error')
+    if (reason) {
+      const messages: Record<string, string> = {
+        oauth_unavailable: 'That sign-in method is not configured yet.',
+        oauth_state: 'Your sign-in session expired. Please try again.',
+        oauth_token: 'Could not complete sign-in with the provider.',
+        oauth_email: 'No verified email was returned by the provider.',
+        oauth_failed: 'Something went wrong during sign-in. Please try again.',
+      }
+      setError(messages[reason] || 'Sign-in failed. Please try again.')
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -140,25 +164,37 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border"></div>
+          {(providers.google || providers.github) && (
+            <div className="mt-6">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-card text-muted-foreground">Or continue with</span>
+                </div>
               </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-card text-muted-foreground">Or continue with</span>
-              </div>
-            </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <button className="w-full inline-flex justify-center py-2 px-4 border border-border rounded-md shadow-sm bg-background text-sm font-medium text-foreground hover:bg-accent transition-colors">
-                Google
-              </button>
-              <button className="w-full inline-flex justify-center py-2 px-4 border border-border rounded-md shadow-sm bg-background text-sm font-medium text-foreground hover:bg-accent transition-colors">
-                GitHub
-              </button>
+              <div className={`mt-6 grid gap-3 ${providers.google && providers.github ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {providers.google && (
+                  <a
+                    href="/api/auth/oauth/google"
+                    className="w-full inline-flex justify-center py-2 px-4 border border-border rounded-md shadow-sm bg-background text-sm font-medium text-foreground hover:bg-accent transition-colors"
+                  >
+                    Google
+                  </a>
+                )}
+                {providers.github && (
+                  <a
+                    href="/api/auth/oauth/github"
+                    className="w-full inline-flex justify-center py-2 px-4 border border-border rounded-md shadow-sm bg-background text-sm font-medium text-foreground hover:bg-accent transition-colors"
+                  >
+                    GitHub
+                  </a>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <p className="mt-8 text-center text-sm text-muted-foreground">
             Don't have an account?{' '}
